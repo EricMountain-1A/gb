@@ -17,6 +17,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"text/template"
@@ -102,6 +103,7 @@ func loadTestFuncs(ptest *build.Package) (*testFuncs, error) {
 			return nil, err
 		}
 	}
+	t.IsGo1_3 = strings.HasPrefix(runtime.Version(), "go1.3")
 	return t, nil
 }
 
@@ -152,6 +154,7 @@ type testFuncs struct {
 	ImportXtest bool
 	NeedXtest   bool
 	NeedCgo     bool
+	IsGo1_3     bool
 	Cover       []coverInfo
 }
 
@@ -237,7 +240,7 @@ var testmainTmpl = template.Must(template.New("main").Parse(`
 package main
 
 import (
-{{if not .TestMain}}
+{{if and (not .TestMain) (not .IsGo1_3)}}
 	"os"
 {{end}}
 	"regexp"
@@ -338,11 +341,15 @@ func main() {
 		CoveredPackages: {{printf "%q" .Covered}},
 	})
 {{end}}
-	m := testing.MainStart(matchString, tests, benchmarks, examples)
+{{if .IsGo1_3}}
+testing.Main(matchString, tests, benchmarks, examples)
+{{else}}
+m := testing.MainStart(matchString, tests, benchmarks, examples)
 {{with .TestMain}}
 	{{.Package}}.{{.Name}}(m)
 {{else}}
 	os.Exit(m.Run())
+{{end}}
 {{end}}
 }
 
